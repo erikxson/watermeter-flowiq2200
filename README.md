@@ -5,8 +5,6 @@ ESP32 + CC1101 receiver for Kamstrup FlowIQ 2200 (Wireless M-Bus). Publishes met
 
 Read **Kamstrup FlowIQ 2200** (wM-Bus) using an **ESP32 + CC1101**, publish values over **MQTT**, and let **Home Assistant** create the device + sensors automatically via **MQTT Discovery**.
 
-> Firmware: `WaterMeter-FlowIQ2200` v0.3.0
-
 ---
 
 ## What you get in Home Assistant
@@ -68,7 +66,7 @@ Right-side pads on many modules:
 <a href="https://buymeacoffee.com/erikxson">
   <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" height="42" alt="Buy me a coffee">
 </a>
-
+If this project saved you time, consider buying me a coffee
 ---
 
 # Build & Flash (PlatformIO)
