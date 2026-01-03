@@ -8,6 +8,8 @@
 .vscode/ipch/
 
 # Credentials
+credentials.h
+include/credentials.h
 src/credentials.h
 
 # OS junk

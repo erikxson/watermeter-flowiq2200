@@ -43,15 +43,15 @@ All modifications are marked with: `modified by erikxson, 2026:`.
 This pin order follows the module silk-screen from **VCC** downward (as on the common green CC1101 boards):
 
 | CC1101 pin (top → bottom) | Connect to ESP32 | Notes |
-|---|---:|---|
+|---|---|---|
 | **VCC** | **3V3** | 3.3V only |
 | **GND** | **GND** | common ground |
 | **MOSI** | **GPIO 23** | SPI MOSI |
-| **SCLK** | **GPIO 18** | SPI SCK |
+| **SCK/SCLK** | **GPIO 18** | SPI SCK |
 | **MISO** | **GPIO 19** | SPI MISO |
 | **GDO2** | *(optional / not used)* | leave unconnected unless your build uses it |
-| **GDO0** | **GPIO 4** | data/interrupt pin used by firmware |
-| **CSN** | **GPIO 5** | SPI CS |
+| **GDO0** | **GPIO 32** | data/interrupt pin used by firmware |
+| **CSN** | **GPIO 4** | SPI CS |
 
 Right-side pads on many modules:
 
@@ -76,8 +76,8 @@ If this project saved you time, consider buying me a coffee
 
 ## 1) Clone
 ```bash
-git clone https://github.com/erikxson/WaterMeter-FlowIQ2200.git
-cd WaterMeter-FlowIQ2200
+git clone https://github.com/erikxson/watermeter-flowiq2200.git
+cd watermeter-flowiq2200
 
 
 
