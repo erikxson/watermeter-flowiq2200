@@ -63,6 +63,70 @@ Right-side pads on many modules:
 
 ---
 
+# Build & Flash (PlatformIO)
+
+**Open the project in PlatformIO**
+- Open VS Code
+- Install PlatformIO (Extensions → search “PlatformIO”)
+- In VS Code: File → Open Folder… and select the repo folder (watermeter-flowiq2200)
+- Wait for PlatformIO to finish indexing dependencies
+
+**Create your credentials file (required)**
+
+- Rename src/credentials.example.h → src/credentials.h
+- Fill in:
+  - Wi-Fi SSID + password
+  - MQTT broker host/IP
+  - MQTT username/password (or empty strings if not used)
+  - meterId (4 bytes)
+  - key (16 bytes AES-128)
+
+**Verify wiring matches the firmware**
+
+- Confirm your wiring matches include/hwconfig.h
+
+**Select build target (ESP32 recommended)**
+
+- ESP32 (tested)
+- ESP8266 (experimental / not tested)
+
+**Build the firmware**
+
+- PlatformIO → Project task → "esp-board of your choice" → Build
+
+**Flash the firmware**
+
+- PlatformIO → Project task → "esp-board of your choice" → Upload
+
+**Monitor serial output**
+
+- PlatformIO → Project task → "esp-board of your choice" → Monitor
+
+**Home Assistant: enable MQTT Discovery and verify device appears**
+
+Home Assistant must have the MQTT integration configured and connected to the broker.
+Home Assistant must have the MQTT integration configured and connected to the broker.
+
+  Verify in Home Assistant
+  - Go to Settings → Devices & Services → MQTT
+  - Open the Devices list
+  - Look for a new device named similar to: Water Meter / WaterMeter-FlowIQ2200
+
+  You should get sensors such as:
+  - Water Meter Usage (m³)
+  - Water Meter Month Start (m³)
+  - Water Meter Flow (l/h)
+
+**MQTT topics (for verification)**
+
+Go to Settings → Devices & services → MQTT → Settings → Listen to topic
+  Start listen to:
+  - watermeter/0/sensor/mydatajson
+  - watermeter/0/online (true/false)
+  - watermeter/0/online_ts
+
+
+---
 
 If this project saved you time, consider buying me a coffee
 
@@ -71,13 +135,3 @@ If this project saved you time, consider buying me a coffee
 </a>
 
 ---
-
-# Build & Flash (PlatformIO)
-
-## 1) Clone
-```bash
-git clone https://github.com/erikxson/watermeter-flowiq2200.git
-cd watermeter-flowiq2200
-
-
-
