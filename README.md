@@ -122,7 +122,7 @@ Home Assistant must have the MQTT integration configured and connected to the br
 Go to Settings → Devices & services → MQTT → Settings → Listen to topic
   Start listen to:
   - watermeter/0/sensor/mydatajson
-  - watermeter/0/online (true/false)
+  - watermeter/0/online
   - watermeter/0/online_ts
 
 
