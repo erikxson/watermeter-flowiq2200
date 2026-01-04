@@ -4,6 +4,7 @@ Read **Kamstrup FlowIQ 2200** (wM-Bus) using an **ESP32 + CC1101**, publish valu
 
 ---
 <img align="right" height="250" src="images/flowiq2200.png">
+
 ## What you get in Home Assistant
 
 A single MQTT device with sensors such as:
@@ -111,7 +112,6 @@ Right-side pads on many modules:
 
 **Home Assistant: enable MQTT Discovery and verify device appears**
 
-Home Assistant must have the MQTT integration configured and connected to the broker.
 Home Assistant must have the MQTT integration configured and connected to the broker.
 
   Verify in Home Assistant
