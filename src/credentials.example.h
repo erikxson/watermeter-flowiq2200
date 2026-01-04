@@ -8,9 +8,6 @@
 // 1) Copy this file to: src/credentials.h
 // 2) Fill in your values below
 //
-// NOTE: Do NOT commit src/credentials.h (it contains secrets). The .gitignore
-// already excludes it.
-//
 // credentials[i] = { WIFI_SSID, WIFI_PASSWORD, MQTT_BROKER_IP_OR_HOSTNAME }
 #define NUM_SSID_CREDENTIALS  1
 static const char *credentials[NUM_SSID_CREDENTIALS][3] =

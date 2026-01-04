@@ -1,8 +1,5 @@
 # WaterMeter-FlowIQ2200 (ESP32 + CC1101 + Home Assistant MQTT Discovery)
 
-ESP32 + CC1101 receiver for Kamstrup FlowIQ 2200 (Wireless M-Bus). Publishes meter data via MQTT for Home Assistant.
-
-
 Read **Kamstrup FlowIQ 2200** (wM-Bus) using an **ESP32 + CC1101**, publish values over **MQTT**, and let **Home Assistant** create the device + sensors automatically via **MQTT Discovery**.
 
 ---
@@ -20,8 +17,18 @@ A single MQTT device with sensors such as:
 - Publishes JSON to MQTT for easy HA sensors.
 
 ## License
+This project is based on code from:
+1) **esp32-multical21** by pthalin  
+   Repository: https://github.com/pthalin/esp32-multical21  
+   License: GNU GPL v3 (or later)
+
+That project is itself derived from:
+
+2) **esp-multical21** by chester4444  
+   Repository: https://github.com/chester4444/esp-multical21  
+   License: GNU GPL v3 (or later)
+
 This project is **GNU GPL v3 (or later)**.  
-Original codebase: https://github.com/pthalin/esp32-multical21  
 See: `LICENSE` and `CREDITS.md`.
 
 **Important:** Original copyright headers are preserved in derived files.  
