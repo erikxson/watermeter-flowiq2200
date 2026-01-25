@@ -4,7 +4,7 @@
 
 Modifications:
 Modified by erikxson, 2026:
-- FlowIQ 2200 support (volume + month start + flow in l/h)
+- FlowIQ 2200 support (volume + month start + flow in L/h)
 - MQTT Home Assistant discovery support
 - Robust MQTT availability/heartbeat topics
 - Removed unused temperature fields
@@ -30,7 +30,7 @@ Modified by erikxson, 2026:
 
 // === Build/metadata ===
 #define FW_NAME      "WaterMeter-FlowIQ2200"
-#define FW_VERSION   "0.3.0"
+#define FW_VERSION   "0.3.1"
 #define FW_PUBLISHER "github.com/erikxson"
 
 static const char* TOPIC_FW_INFO = "watermeter/0/fw";
@@ -42,6 +42,12 @@ static const char* TOPIC_ONLINE_TS  = "watermeter/0/online_ts";   // seconds sin
 static const char* TOPIC_IP         = "watermeter/0/ipaddr";
 static const char* TOPIC_MYDATA     = "watermeter/0/sensor/mydata";
 static const char* TOPIC_MYDATAJS   = "watermeter/0/sensor/mydatajson";
+
+// === Reset command (new + legacy) ===
+static const char* TOPIC_RESET_CMD_NEW     = "watermeter/0/cmd/reset";
+static const char* TOPIC_RESET_STATUS_NEW  = "watermeter/0/cmd/reset/status";
+static const char* TOPIC_RESET_CMD_LEGACY  = "espmeter/reset";
+static const char* TOPIC_RESET_STATUS_LEG  = "espmeter/reset/status";
 
 // === MQTT Discovery base ===
 static const char* DISCOVERY_PREFIX = "homeassistant";
@@ -63,6 +69,15 @@ static char tsBuf[24];
 
 static unsigned long lastOnlinePublishMs = 0;
 static const unsigned long ONLINE_PUBLISH_INTERVAL_MS = 30000; // 30s heartbeat
+
+// WiFi reconnect: 5 attempts with 10s backoff, then reboot
+static uint8_t wifiAttempt = 0;
+static const uint8_t WIFI_MAX_ATTEMPTS = 5;
+static const unsigned long WIFI_BACKOFF_MS = 10000;
+
+// MQTT connect backoff: 5s
+static unsigned long nextMqttAttemptMs = 0;
+static const unsigned long MQTT_BACKOFF_MS = 5000;
 
 // ---------- Helpers ----------------------------------------------------
 
@@ -114,14 +129,14 @@ static bool ConnectWifi()
   }
 
 #if defined(ESP32)
-  // Stabilare WiFi på ESP32
+  // Improve WiFi stability on ESP32
   WiFi.setSleep(false);
 #endif
 
   return true;
 }
 
-// Implementeras/anropas från WMBusFrame.cpp
+// Implemented/called from WMBusFrame.cpp
 void mqttMyData(const char* str)
 {
   mqttClient.publish(TOPIC_MYDATA, str, true); // retained
@@ -149,16 +164,22 @@ static bool payloadEqualsIgnoreCase(const byte* payload, unsigned int len, const
 
 static void mqttCallback(char* topic, byte* payload, unsigned int len)
 {
-  if (strcmp(topic, "espmeter/reset") == 0 && payloadEqualsIgnoreCase(payload, len, "true"))
+  const bool isLegacyReset = (strcmp(topic, TOPIC_RESET_CMD_LEGACY) == 0);
+  const bool isNewReset    = (strcmp(topic, TOPIC_RESET_CMD_NEW) == 0);
+
+  if ((isLegacyReset || isNewReset) && payloadEqualsIgnoreCase(payload, len, PAYLOAD_TRUE))
   {
-    mqttClient.publish("espmeter/reset/status", PAYLOAD_FALSE, true);
+    // Mark "processing" (retained). Will be set back to false on next boot/connect.
+    mqttClient.publish(TOPIC_RESET_STATUS_NEW, PAYLOAD_TRUE, true);
+    mqttClient.publish(TOPIC_RESET_STATUS_LEG, PAYLOAD_TRUE, true);
+
     mqttClient.loop();
     delay(200);
     ESP.restart();
   }
 }
 
-// 64-bit uptime i sekunder (startar på 0 vid boot, wrappar i praktiken inte)
+// 64-bit uptime in seconds (starts at 0 on boot; practically never wraps)
 static uint64_t uptimeSeconds()
 {
 #if defined(ESP32)
@@ -170,10 +191,10 @@ static uint64_t uptimeSeconds()
 
 static void mqttPublishOnlineHeartbeat()
 {
-  // Online retained (HA availability)
+  // Online retained (Home Assistant availability)
   mqttClient.publish(TOPIC_ONLINE, PAYLOAD_TRUE, true);
 
-  // online_ts non-retained (för att se “nya” meddelanden i realtid)
+  // online_ts non-retained (useful to see "fresh" messages in real time)
   uint64_t up = uptimeSeconds();
   snprintf(tsBuf, sizeof(tsBuf), "%llu", (unsigned long long)up);
   mqttClient.publish(TOPIC_ONLINE_TS, tsBuf, false);
@@ -190,9 +211,11 @@ static void mqttPublishIp()
 
 static void mqttSubscribe()
 {
-  mqttClient.subscribe("espmeter/reset");
-  mqttClient.subscribe("watermeter/0/liveData");
-  mqttClient.subscribe("/smarthomeNG/start");
+  // New reset command
+  mqttClient.subscribe(TOPIC_RESET_CMD_NEW);
+
+  // Legacy reset command (transition period)
+  mqttClient.subscribe(TOPIC_RESET_CMD_LEGACY);
 }
 
 static bool mqttConnect()
@@ -200,13 +223,13 @@ static bool mqttConnect()
   mqttClient.setServer(credentials[cred][2], 1883);
   mqttClient.setCallback(mqttCallback);
 
-  // Discovery payloads blir större → öka buffer
+  // Discovery payloads are larger -> increase buffer size
   mqttClient.setBufferSize(1024);
 
   mqttClient.setKeepAlive(60);
   mqttClient.setSocketTimeout(10);
 
-  // LWT: om klienten dör -> broker retained "false"
+  // LWT: if the client dies -> broker retains "false"
   return mqttClient.connect(
     mqttClientId,
     mqtt_user,
@@ -231,7 +254,7 @@ static void waterMeterLoop()
 
 // ---------- MQTT Discovery --------------------------------------------
 
-// Publicerar en HA discovery-sensor (retained config)
+// Publish a Home Assistant discovery sensor (retained config)
 static void publishDiscoverySensor(
   const char* objectId,
   const char* name,
@@ -246,12 +269,13 @@ static void publishDiscoverySensor(
   char topic[160];
   snprintf(topic, sizeof(topic), "%s/sensor/watermeter0_%s/config", DISCOVERY_PREFIX, objectId);
 
-  // device identifiers ska vara stabilt över tid (inte IP). Vi använder en fast “watermeter0”.
-  // Om du vill separera flera mätare i framtiden: byt watermeter0 till watermeter1 osv.
+  // Device identifiers must remain stable over time (not IP-based).
+  // We use a fixed identifier "watermeter0".
+  // If you add more meters later, use "watermeter1", etc.
   char payload[900];
 
-  // Bygg JSON med valfria fält (state_class, icon, device_class, unit kan vara null/utelämnas)
-  // För robusthet: skriv in dem bara om de finns.
+  // Build JSON with optional fields (state_class, icon, device_class, unit may be omitted)
+  // For robustness: only include optional fields when provided.
   int n = snprintf(
     payload, sizeof(payload),
     "{"
@@ -282,25 +306,35 @@ static void publishDiscoverySensor(
 
   if (n <= 0 || (size_t)n >= sizeof(payload))
   {
-    // Om payload blev för stor: publicera inget (hellre tyst fail än trasig JSON)
+    // If payload is too large: publish nothing (better than broken JSON)
     return;
   }
 
-  // Lägg till optional fields genom enkel “replace-strategi” (append före sista '}')
-  // Vi gör detta utan dynamisk allokering.
-  auto appendField = [&](const char* key, const char* val, bool quote) {
+  auto appendField = [&](const char* key, const char* val, bool quote)
+  {
     if (!val || !val[0]) return;
+
     size_t L = strlen(payload);
     if (L < 2) return;
-    // ta bort sista "}"
     if (payload[L - 1] != '}') return;
-    payload[L - 1] = '\0';
 
-    char extra[180];
+    char extra[200];
     if (quote)
       snprintf(extra, sizeof(extra), ",\"%s\":\"%s\"}", key, val);
     else
       snprintf(extra, sizeof(extra), ",\"%s\":%s}", key, val);
+
+    const size_t extraLen = strlen(extra);
+
+    // Guard: ensure we have room for the extra field + null terminator
+    if (L + extraLen >= sizeof(payload))
+    {
+      // Skip append rather than corrupt JSON
+      return;
+    }
+
+    // Remove trailing "}"
+    payload[L - 1] = '\0';
 
     strncat(payload, extra, sizeof(payload) - strlen(payload) - 1);
   };
@@ -327,7 +361,7 @@ static void publishDiscoveryAll()
     ""
   );
 
-  // Month start (m³) – ingen state_class för att undvika “total_increasing”-logik här
+  // Month start (m³) - no state_class to avoid total_increasing semantics here
   publishDiscoverySensor(
     "month_start",
     "Water Meter Month Start",
@@ -339,13 +373,13 @@ static void publishDiscoveryAll()
     ""
   );
 
-  // Flow (l/h, heltal)
+  // Flow (L/h, integer)
   publishDiscoverySensor(
     "flow",
     "Water Meter Flow",
     TOPIC_MYDATAJS,
     "{{ value_json.FlowLph | int(0) }}",
-    "l/h",
+    "L/h",
     "",
     "measurement",
     "mdi:water-pump"
@@ -375,7 +409,7 @@ void setup()
   buildMqttClientId();
   WiFi.mode(WIFI_STA);
 
-  // Starta radion direkt
+  // Start the radio immediately
   waterMeter.begin();
 
   state = StateWifiConnect;
@@ -388,12 +422,18 @@ void loop()
     case StateWifiConnect:
       if (ConnectWifi())
       {
+        wifiAttempt = 0;
         setupOTA();
         state = StateMqttConnect;
       }
       else
       {
-        ESP.restart();
+        wifiAttempt++;
+        if (wifiAttempt >= WIFI_MAX_ATTEMPTS)
+        {
+          ESP.restart();
+        }
+        delay(WIFI_BACKOFF_MS);
       }
       break;
 
@@ -404,16 +444,26 @@ void loop()
         break;
       }
 
+      if (millis() < nextMqttAttemptMs)
+      {
+        ArduinoOTA.handle();
+        break;
+      }
+
       if (mqttConnect())
       {
-        // Basinfo
+        // Base info
         mqttPublishIp();
         mqttPublishOnlineHeartbeat();
 
         mqttClient.publish(TOPIC_FW_INFO, FW_NAME, true);
         mqttClient.publish(TOPIC_FW_VER,  FW_VERSION, true);
 
-        // MQTT Discovery (skapar enheten + sensorer i HA)
+        // Reset status idle (retained) after (re)boot
+        mqttClient.publish(TOPIC_RESET_STATUS_NEW, PAYLOAD_FALSE, true);
+        mqttClient.publish(TOPIC_RESET_STATUS_LEG, PAYLOAD_FALSE, true);
+
+        // MQTT Discovery (creates device + sensors in Home Assistant)
         publishDiscoveryAll();
 
         mqttSubscribe();
@@ -423,7 +473,7 @@ void loop()
       }
       else
       {
-        delay(1000);
+        nextMqttAttemptMs = millis() + MQTT_BACKOFF_MS;
       }
 
       ArduinoOTA.handle();
@@ -438,7 +488,7 @@ void loop()
 
       if (!mqttClient.connected())
       {
-        // LWT sköter false vid disconnect
+        // LWT handles "false" on disconnect
         state = StateMqttConnect;
         break;
       }

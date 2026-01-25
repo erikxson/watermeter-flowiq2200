@@ -3,6 +3,7 @@
 Read **Kamstrup FlowIQ 2200** (wM-Bus) using an **ESP32 + CC1101**, publish values over **MQTT**, and let **Home Assistant** create the device + sensors automatically via **MQTT Discovery**.
 
 ---
+
 <img align="right" height="250" src="images/flowiq2200.png">
 
 ## What you get in Home Assistant
@@ -10,15 +11,22 @@ Read **Kamstrup FlowIQ 2200** (wM-Bus) using an **ESP32 + CC1101**, publish valu
 A single MQTT device with sensors such as:
 
 - **Water Meter Usage** (m³) – total consumption
-- **Water Meter Month Start Value** (m³) – month baseline
-- **Water Meter Flow** (l/h) – current flow as an **integer l/h**
+- **Water Meter Month Start** (m³) – month baseline
+- **Water Meter Flow** (L/h) – current flow as an **integer L/h**
 
 ## Status
+
 - Works with FlowIQ 2200 telegrams where AES key and meter ID are known.
 - Publishes JSON to MQTT for easy HA sensors.
+- ESP32: tested.
+- ESP8266: experimental / untested.
+
+---
 
 ## License
+
 This project is based on code from:
+
 1) **esp32-multical21** by pthalin  
    Repository: https://github.com/pthalin/esp32-multical21  
    License: GNU GPL v3 (or later)
@@ -30,10 +38,10 @@ That project is itself derived from:
    License: GNU GPL v3 (or later)
 
 This project is **GNU GPL v3 (or later)**.  
-See: `LICENSE` and `CREDITS.md`.
+See: `LICENSE`, `CREDITS.md`, and `CHANGELOG.md`.
 
 **Important:** Original copyright headers are preserved in derived files.  
-All modifications are marked with: `modified by erikxson, 2026:`.
+All modifications are marked with: `modified by erikxson, 2026`.
 
 ---
 
@@ -73,15 +81,16 @@ Right-side pads on many modules:
 
 # Build & Flash (PlatformIO)
 
-**Open the project in PlatformIO**
+## Open the project in PlatformIO
+
 - Open VS Code
 - Install PlatformIO (Extensions → search “PlatformIO”)
 - In VS Code: File → Open Folder… and select the repo folder (watermeter-flowiq2200)
 - Wait for PlatformIO to finish indexing dependencies
 
-**Create your credentials file (required)**
+## Create your credentials file (required)
 
-- Rename src/credentials.example.h → src/credentials.h
+- Rename `src/credentials.example.h` → `src/credentials.h`
 - Fill in:
   - Wi-Fi SSID + password
   - MQTT broker host/IP
@@ -89,49 +98,72 @@ Right-side pads on many modules:
   - meterId (4 bytes)
   - key (16 bytes AES-128)
 
-**Verify wiring matches the firmware**
+## Verify wiring matches the firmware
 
-- Confirm your wiring matches include/hwconfig.h
+- Confirm your wiring matches `include/hwconfig.h`
 
-**Select build target (ESP32 recommended)**
+## Select build target
 
-- ESP32 (tested)
-- ESP8266 (experimental / not tested)
+- **ESP32 (tested)**
+- **ESP8266 (experimental / untested)**
 
-**Build the firmware**
+## Build the firmware
 
-- PlatformIO → Project task → "esp-board of your choice" → Build
+- PlatformIO → Project tasks → select environment (`esp32` recommended) → **Build**
 
-**Flash the firmware**
+## Flash the firmware
 
-- PlatformIO → Project task → "esp-board of your choice" → Upload
+- PlatformIO → Project tasks → select environment → **Upload**
 
-**Monitor serial output**
+## Monitor serial output
 
-- PlatformIO → Project task → "esp-board of your choice" → Monitor
+- PlatformIO → Project tasks → select environment → **Monitor**
 
-**Home Assistant: enable MQTT Discovery and verify device appears**
+---
+
+# Home Assistant
+
+## Enable MQTT Discovery and verify the device appears
 
 Home Assistant must have the MQTT integration configured and connected to the broker.
 
-  Verify in Home Assistant
-  - Go to Settings → Devices & Services → MQTT
-  - Open the Devices list
-  - Look for a new device named similar to: Water Meter / WaterMeter-FlowIQ2200
+Verify in Home Assistant:
+- Settings → Devices & Services → MQTT
+- Open the Devices list
+- Look for a new device named similar to: **Water Meter**
 
-  You should get sensors such as:
-  - Water Meter Usage (m³)
-  - Water Meter Month Start (m³)
-  - Water Meter Flow (l/h)
+You should get sensors such as:
+- Water Meter Usage (m³)
+- Water Meter Month Start (m³)
+- Water Meter Flow (L/h)
 
-**MQTT topics (for verification)**
+## MQTT topics (for verification)
 
-Go to Settings → Devices & services → MQTT → Settings → Listen to topic
-  Start listen to:
-  - watermeter/0/sensor/mydatajson
-  - watermeter/0/online
-  - watermeter/0/online_ts
+Home Assistant: Settings → Devices & Services → MQTT → Configure → **Listen to a topic**
 
+Listen to:
+- `watermeter/0/sensor/mydatajson`
+- `watermeter/0/online`
+- `watermeter/0/online_ts`
+
+## MQTT control topics
+
+### Reset (new)
+- Command: `watermeter/0/cmd/reset`  
+  Payload: `true`
+- Status (retained): `watermeter/0/cmd/reset/status`  
+  Payload set back to `false` after processing.
+
+### Reset (legacy, still accepted during transition)
+- Command: `espmeter/reset`  
+  Payload: `true`
+
+---
+
+## Runtime behavior (robustness)
+
+- WiFi connection: retries up to 5 times with ~10s delay between attempts, then reboots.
+- MQTT reconnect: 5s backoff between connection attempts.
 
 ---
 
@@ -140,5 +172,3 @@ If this project saved you time, consider buying me a coffee
 <a href="https://buymeacoffee.com/erikxson">
   <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" height="42" alt="Buy me a coffee">
 </a>
-
----
