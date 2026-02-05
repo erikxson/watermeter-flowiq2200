@@ -15,11 +15,18 @@ Modified by erikxson, 2026:
 #include "WaterMeter.h"
 #include "hwconfig.h"
 
+#ifndef WMBUS_DEBUG_RF_DUMP
+#define WMBUS_DEBUG_RF_DUMP 0
+#endif
+
 #if defined(ESP32)
   #define ISR_ATTR IRAM_ATTR
 #else
   #define ISR_ATTR ICACHE_RAM_ATTR
 #endif
+
+// Implemented/called from main.cpp
+void mqttDebugRf(const char* str);
 
 WaterMeter::WaterMeter() {}
 
@@ -228,13 +235,50 @@ uint8_t WaterMeter::readByteFromFifo(void)
   return readReg(CC1101_RXFIFO, CC1101_CONFIG_REGISTER);
 }
 
+static void dumpRawRfBytes(uint8_t p1, uint8_t p2, uint8_t len, const uint8_t* payload)
+{
+#if WMBUS_DEBUG_RF_DUMP
+  const size_t total = (size_t)len + 3;
+  char buf[900];
+  int n = snprintf(buf, sizeof(buf), "rf len=%u data=", (unsigned)total);
+  if (n <= 0 || (size_t)n >= sizeof(buf)) return;
+
+  size_t pos = (size_t)n;
+  uint8_t header[3] = { p1, p2, len };
+  const uint8_t* parts[2] = { header, payload };
+  const size_t lens[2] = { 3, (size_t)len };
+
+  for (int part = 0; part < 2; part++)
+  {
+    for (size_t i = 0; i < lens[part]; i++)
+    {
+      int w = snprintf(buf + pos, sizeof(buf) - pos, "%02X ", parts[part][i]);
+      if (w <= 0 || (size_t)w >= sizeof(buf) - pos) break;
+      pos += (size_t)w;
+    }
+  }
+
+  // Trim trailing space
+  if (pos > 0 && buf[pos - 1] == ' ') buf[pos - 1] = '\0';
+
+  mqttDebugRf(buf);
+
+#if WMBUS_DEBUG_SERIAL_DUMP
+  Serial.print("RF ");
+  Serial.println(buf);
+#endif
+#else
+  (void)p1; (void)p2; (void)len; (void)payload;
+#endif
+}
+
 void WaterMeter::receive(WMBusFrame *frame)
 {
   uint8_t p1 = readByteFromFifo();
   uint8_t p2 = readByteFromFifo();
   uint8_t payloadLength = readByteFromFifo();
 
-  if ((payloadLength < WMBusFrame::MAX_LENGTH) && (p1 == 0x54) && (p2 == 0x3D))
+  if ((payloadLength <= WMBusFrame::MAX_LENGTH) && (p1 == 0x54) && (p2 == 0x3D))
   {
     frame->length = payloadLength;
 
@@ -242,6 +286,8 @@ void WaterMeter::receive(WMBusFrame *frame)
     {
       frame->payload[i] = readByteFromFifo();
     }
+
+    dumpRawRfBytes(p1, p2, payloadLength, frame->payload);
 
     frame->decode();
   }

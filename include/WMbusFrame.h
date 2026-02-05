@@ -10,7 +10,8 @@
 class WMBusFrame
 {
   public:
-    static const uint8_t MAX_LENGTH = 64;
+    // Increase to accept full frames (compact frames are ~36 bytes).
+    static const uint16_t MAX_LENGTH = 255;
   private:
     CTR<AESSmall128> aes128;
     uint8_t cipher[MAX_LENGTH];

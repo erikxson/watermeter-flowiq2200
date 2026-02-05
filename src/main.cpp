@@ -30,7 +30,7 @@ Modified by erikxson, 2026:
 
 // === Build/metadata ===
 #define FW_NAME      "WaterMeter-FlowIQ2200"
-#define FW_VERSION   "0.3.1"
+#define FW_VERSION   "0.3.2"
 #define FW_PUBLISHER "github.com/erikxson"
 
 static const char* TOPIC_FW_INFO = "watermeter/0/fw";
@@ -42,6 +42,9 @@ static const char* TOPIC_ONLINE_TS  = "watermeter/0/online_ts";   // seconds sin
 static const char* TOPIC_IP         = "watermeter/0/ipaddr";
 static const char* TOPIC_MYDATA     = "watermeter/0/sensor/mydata";
 static const char* TOPIC_MYDATAJS   = "watermeter/0/sensor/mydatajson";
+static const char* TOPIC_DEBUG_RAW  = "watermeter/0/debug/raw";
+static const char* TOPIC_DEBUG_REC  = "watermeter/0/debug/records";
+static const char* TOPIC_DEBUG_RF   = "watermeter/0/debug/rf";
 
 // === Reset command (new + legacy) ===
 static const char* TOPIC_RESET_CMD_NEW     = "watermeter/0/cmd/reset";
@@ -144,6 +147,18 @@ void mqttMyData(const char* str)
 void mqttMyDataJson(const char* str)
 {
   mqttClient.publish(TOPIC_MYDATAJS, str, true); // retained
+}
+void mqttDebugRaw(const char* str)
+{
+  mqttClient.publish(TOPIC_DEBUG_RAW, str, false); // non-retained
+}
+void mqttDebugRf(const char* str)
+{
+  mqttClient.publish(TOPIC_DEBUG_RF, str, false); // non-retained
+}
+void mqttDebugRecord(const char* str)
+{
+  mqttClient.publish(TOPIC_DEBUG_REC, str, false); // non-retained
 }
 
 static bool payloadEqualsIgnoreCase(const byte* payload, unsigned int len, const char* s)
@@ -379,6 +394,18 @@ static void publishDiscoveryAll()
     "Water Meter Flow",
     TOPIC_MYDATAJS,
     "{{ value_json.FlowLph | int(0) }}",
+    "L/h",
+    "",
+    "measurement",
+    "mdi:water-pump"
+  );
+
+  // Flow (full frame, L/h, integer) - may be sporadic
+  publishDiscoverySensor(
+    "flow_full",
+    "Water Meter Flow (Full)",
+    TOPIC_MYDATAJS,
+    "{{ (value_json.FlowLphFull | int(-1)) if (value_json.FlowLphFull | int(-1)) >= 0 else none }}",
     "L/h",
     "",
     "measurement",
