@@ -12,6 +12,7 @@ All notable changes to this project will be documented in this file.
 - Flow parsing is now record-based (no fixed offsets) and supports VIF `0x3B` in full frames.
 - Compact flow can be extended using the last full-frame flow (>256 offset) until the next full frame.
 - Non-compact frames can be parsed/dumped even when CRC fails (for troubleshooting).
+- FlowLph may look stale between full frames because compact flow is 1 byte and full frames can be sporadic (often even more on evenings/weekends).
 
 ## 0.3.1 - 2026-01-26
 ### Changed

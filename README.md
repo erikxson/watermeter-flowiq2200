@@ -12,7 +12,10 @@ A single MQTT device with sensors such as:
 
 - **Water Meter Usage** (m³) – total consumption
 - **Water Meter Month Start** (m³) – month baseline
-- **Water Meter Flow** (L/h) – current flow as an **integer L/h**
+- **Water Meter Flow** (L/h) – current flow as an **integer L/h** (flow over 256 L/h may be temporarily wrong between full frames)
+- **Water Meter Flow (Full)** (L/h) – flow from full frames (2‑byte), may be sporadic
+
+See **Flow behavior (compact vs full frames)** below for how these values are derived.
 
 ## Status
 
@@ -21,6 +24,26 @@ A single MQTT device with sensors such as:
 - ESP32: tested.
 - ESP8266: experimental / untested.
 
+---
+
+## Flow behavior (compact vs full frames)
+
+FlowIQ 2200 sends two frame types:
+- Compact frames (CI=0x79) contain flow in 1 byte (0..255).
+- Full frames (CI=0x78) contain flow in 2 bytes and are often much less frequent (minutes between).
+  - Observed: full frames can be even more sporadic during evenings/weekends.
+
+Readouts:
+- `FlowLph` from compact frames (1‑byte VIF 0x32).
+- `FlowLphFull` from full frames (2‑byte VIF 0x3B).
+
+To get a usable flow value above 255, the firmware uses this rule:
+- When a full frame arrives, its flow value is cached.
+- While waiting for the next full frame, compact flow is extended by a +256 offset based on the last full frame.
+- When a new full frame arrives with flow <256, the offset is reset.
+
+This means FlowLph can look "stuck" high or low between full frames if the meter is quiet. This is expected and will update as soon as a new full frame arrives.
+- Observed: full frames can be even more sporadic during evenings/weekends.
 ---
 
 ## License
